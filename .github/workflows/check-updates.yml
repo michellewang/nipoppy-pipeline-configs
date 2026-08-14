@@ -1,0 +1,45 @@
+name: check-pipeline-updates
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: check-pipeline-updates
+  cancel-in-progress: false
+
+jobs:
+  detect-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install pyyaml packaging
+      - name: Detect new pipeline versions
+        id: detect
+        run: python scripts/detect_updates.py
+      - name: Commit updated config
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update last checked pipeline versions [skip ci]"
+          file_pattern: pipelines.yml
+
+  process-updates:
+    needs: detect-updates
+    if: needs.detect-updates.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.detect-updates.outputs.matrix) }}
+    steps:
+      - name: Stub downstream processing
+        run: echo "Processing pipeline ${{ matrix.pipeline }} (${{ matrix.repo }}) at version ${{ matrix.version }}"
