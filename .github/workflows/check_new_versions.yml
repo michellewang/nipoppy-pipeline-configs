@@ -1,15 +1,15 @@
-name: check-pipeline-updates
+name: Check for new pipeline versions
 
 on:
-  schedule:
-    - cron: "0 4 * * *"
+  # schedule:
+  #   - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: check-pipeline-updates
+  group: check-new-versions
   cancel-in-progress: false
 
 jobs:
@@ -18,20 +18,15 @@ jobs:
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install pyyaml packaging
       - name: Detect new pipeline versions
         id: detect
-        run: python scripts/detect_updates.py
-      - name: Commit updated config
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update last checked pipeline versions [skip ci]"
-          file_pattern: pipelines.yml
+        run: python scripts/detect_updates.py .pipeline_info.yml ${GITHUB_OUTPUT}
 
   process-updates:
     needs: detect-updates
