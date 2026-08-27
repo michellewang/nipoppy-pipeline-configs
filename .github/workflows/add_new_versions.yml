@@ -42,9 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          repository: ${{ matrix.github_repo }}
+          repository: ${{ matrix.github-repo }}
           ref: ${{ matrix.version }}
-          persist-credentials: false
       - name: Get Python version
         id: get-python-version
         run: | # TODO some error handling if pyproject.toml is missing
