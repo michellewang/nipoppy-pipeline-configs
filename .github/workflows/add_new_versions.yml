@@ -36,9 +36,6 @@ jobs:
         include: ${{ fromJSON(needs.detect-new-versions.outputs.matrix) }}
     env:
       DESCRIPTOR_FILE: ${{ matrix.name }}-${{ matrix.version }}.json
-    outputs:
-      artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
-      descriptor-file: ${{ env.DESCRIPTOR_FILE }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,7 +57,7 @@ jobs:
           parser-type: ${{ matrix.parser-type }}
           parser-location: ${{ matrix.parser-location }}
           prog-name: ${{ matrix.name }}
-          output-path: ${{ env.DESCRIPTOR_FILE }}
+          output-path: descriptor.json
           open-pr: false
           exclude-version: false
           updates-str: '{"container-image.image": "${{ matrix.docker-image }}:${{ matrix.version }}", "container-image.type": "docker"}'
@@ -70,6 +67,7 @@ jobs:
         with:
           name: ${{ matrix.name }}-${{ matrix.version }}
           path: ${{ env.DESCRIPTOR_FILE }}
+          retention-days: 1
 
   generate-config-files:
     needs:
@@ -88,15 +86,15 @@ jobs:
       - name: Download descriptor file
         uses: actions/download-artifact@v8
         with:
-          artifact-ids: ${{ needs.create-descriptor.outputs.artifact-id }}
-          path: $RUNNER_TEMP
+          name: ${{ matrix.name }}-${{ matrix.version }}
+          path: ${{ runner.temp }}
       - name: Install Nipoppy
         run: pip install nipoppy
       - name: Generate config files
         run: |
           nipoppy pipeline create \
             --type ${{ matrix.pipeline-type }} \
-            --source-descriptor ${RUNNER_TEMP}/${{ needs.create-descriptor.outputs.descriptor-file }} \
+            --source-descriptor ${{ runner.temp }}/descriptor.json \
             pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
           # TODO remove
           tree pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
