@@ -1,0 +1,105 @@
+name: Add new pipeline versions
+
+on:
+  # schedule:
+  #   - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: add-new-versions
+  cancel-in-progress: false
+
+jobs:
+  detect-new-versions:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.14
+      - name: Install dependencies
+        run: pip install pyyaml packaging
+      - name: Detect new pipeline versions
+        id: detect
+        run: python scripts/detect_new_versions.py .pipeline_info.yml ${GITHUB_OUTPUT}
+
+  create-descriptor:
+    needs: detect-new-versions
+    if: needs.detect-new-versions.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.detect-new-versions.outputs.matrix) }}
+    env:
+      DESCRIPTOR_FILE: ${{ matrix.name }}-${{ matrix.version }}.json
+    outputs:
+      artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
+      descriptor-file: ${{ env.DESCRIPTOR_FILE }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.github_repo }}
+          ref: ${{ matrix.version }}
+      - name: Get Python version
+        id: get-python-version
+        run: | # TODO some error handling if pyproject.toml is missing
+          python_version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['requires-python'])")
+          echo "python_version=$python_version" >> $GITHUB_OUTPUT
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ steps.get-python-version.outputs.python_version }}
+      - name: Install the pipeline
+        run: pip install . # TODO make path configurable
+      - name: Create a Boutiques descriptor file
+        uses: styx-api/python-cli-to-boutiques@v1
+        with:
+          parser-type: ${{ matrix.parser-type }}
+          parser-location: ${{ matrix.parser-location }}
+          prog-name: ${{ matrix.name }}
+          output-path: ${{ env.DESCRIPTOR_FILE }}
+          open-pr: false
+          exclude-version: false
+          updates-str: '{"container-image.image": "${{ matrix.docker-image }}:${{ matrix.version }}", "container-image.type": "docker"}'
+      - name: Upload the descriptor file as an artifact
+        id: upload-artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}-${{ matrix.version }}
+          path: ${{ env.DESCRIPTOR_FILE }}
+
+  generate-config-files:
+    needs:
+      - detect-new-versions
+      - create-descriptor
+    if: needs.detect-new-versions.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.detect-new-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.14 # latest Nipoppy
+      - name: Download descriptor file
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.create-descriptor.outputs.artifact-id }}
+          path: $RUNNER_TEMP
+      - name: Install Nipoppy
+        run: pip install nipoppy
+      - name: Generate config files
+        run: |
+          nipoppy pipeline create \
+            --type ${{ matrix.pipeline-type }} \
+            --source-descriptor ${RUNNER_TEMP}/${{ needs.create-descriptor.outputs.descriptor-file }} \
+            pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
+          # TODO remove
+          tree pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
+
+      # TODO update config file
+      # TODO open PR
