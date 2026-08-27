@@ -15,6 +15,8 @@ concurrency:
 jobs:
   detect-updates:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
     steps:
