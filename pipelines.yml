@@ -1,6 +1,0 @@
-pipelines:
-  - name: fmriprep
-    repo: nipreps/fmriprep
-    version_source: releases
-    include_prereleases: false
-    last_version_checked: null
