@@ -44,6 +44,7 @@ jobs:
         with:
           repository: ${{ matrix.github_repo }}
           ref: ${{ matrix.version }}
+          persist-credentials: false
       - name: Get Python version
         id: get-python-version
         run: | # TODO some error handling if pyproject.toml is missing
