@@ -90,7 +90,9 @@ jobs:
           name: ${{ matrix.name }}-${{ matrix.version }}
           path: ${{ runner.temp }}
       - name: Install Nipoppy
-        run: pip install nipoppy
+        run: |
+          pip install nipoppy
+          pip install git+https://github.com/childmindresearch/boutiques_next.git
       - name: Generate config files
         run: |
           nipoppy pipeline create \
