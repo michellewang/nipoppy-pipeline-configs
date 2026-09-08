@@ -55,7 +55,7 @@ jobs:
         with:
           python-version: ${{ steps.get-python-version.outputs.python_version }}
       - name: Install the pipeline
-        run: pip install . # TODO make path configurable
+        run: pip install ${{ env.PIPELINE_REPO_DIR }} # TODO make path configurable
       - name: Create a Boutiques descriptor file
         uses: styx-api/python-cli-to-boutiques@v1
         with:
