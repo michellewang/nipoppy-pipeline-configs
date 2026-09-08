@@ -65,7 +65,7 @@ jobs:
           output-path: ${{ env.DESCRIPTOR_FILENAME }}
           open-pr: false
           exclude-version: false
-          updates-str: '{"container-image.image": "${{ matrix.docker-image }}:${{ matrix.version }}", "container-image.type": "docker"}'
+          updates-str: '{"tool-version": "${{ matrix.version }}", "container-image.image": "${{ matrix.docker-image }}:${{ matrix.version }}", "container-image.type": "docker"}'
       - uses: actions/checkout@v7
         with:
           repository: ${{ github.repository }}
