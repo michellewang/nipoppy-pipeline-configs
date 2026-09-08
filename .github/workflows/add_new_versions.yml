@@ -30,22 +30,26 @@ jobs:
         id: detect
         run: python scripts/detect_new_versions.py .pipeline_info.yml ${GITHUB_OUTPUT}
 
-  create-descriptor:
+  generate-config-files:
     needs: detect-new-versions
     if: needs.detect-new-versions.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include: ${{ fromJSON(needs.detect-new-versions.outputs.matrix) }}
+    env:
+      PIPELINE_REPO_DIR: ${{ matrix.name }}
+      PIPELINE_CONFIGS_REPO_DIR: nipoppy-pipeline-configs
     steps:
       - uses: actions/checkout@v7
         with:
           repository: ${{ matrix.github-repo }}
           ref: ${{ matrix.version }}
+          path: ${{ env.PIPELINE_REPO_DIR }}
       - name: Get Python version
         id: get-python-version
         run: | # TODO some error handling if pyproject.toml is missing
-          python_version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['requires-python'])")
+          python_version=$(cd ${{ env.PIPELINE_REPO_DIR }} && python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['requires-python'])")
           echo "python_version=$python_version" >> $GITHUB_OUTPUT
       - uses: actions/setup-python@v7
         with:
@@ -62,33 +66,13 @@ jobs:
           open-pr: false
           exclude-version: false
           updates-str: '{"container-image.image": "${{ matrix.docker-image }}:${{ matrix.version }}", "container-image.type": "docker"}'
-      - name: Upload the descriptor file as an artifact
-        id: upload-artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.name }}-${{ matrix.version }}
-          path: ${{ env.DESCRIPTOR_FILENAME }}
-          retention-days: 1
-
-  generate-config-files:
-    needs:
-      - detect-new-versions
-      - create-descriptor
-    if: needs.detect-new-versions.outputs.matrix != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include: ${{ fromJSON(needs.detect-new-versions.outputs.matrix) }}
-    steps:
       - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}
+          path: ${{ env.PIPELINE_CONFIGS_REPO_DIR }}
       - uses: actions/setup-python@v7
         with:
           python-version: 3.14 # latest Nipoppy
-      - name: Download descriptor file
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ matrix.name }}-${{ matrix.version }}
-          path: ${{ runner.temp }}
       - name: Install Nipoppy
         run: |
           pip install nipoppy@git+https://github.com/michellewang/nipoppy.git@bosh_cli_only
@@ -97,10 +81,14 @@ jobs:
         run: |
           nipoppy pipeline create \
             --type ${{ matrix.pipeline-type }} \
-            --source-descriptor ${{ runner.temp }}/${{ env.DESCRIPTOR_FILENAME }} \
-            pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
+            --source-descriptor ${{ env.DESCRIPTOR_FILENAME }} \
+            ${{ env.PIPELINE_CONFIGS_REPO_DIR }}/pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
           # TODO remove
-          tree pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
-
-      # TODO update config file
-      # TODO open PR
+          tree ${{ env.PIPELINE_CONFIGS_REPO_DIR }}/pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}
+          cat ${{ env.PIPELINE_CONFIGS_REPO_DIR }}/pipelines/${{ matrix.pipeline-type }}/${{ matrix.name }}-${{ matrix.version }}/config.json
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          path: ${{ env.PIPELINE_CONFIGS_REPO_DIR }}
+          token: ${{ secrets.PR_PAT }}
+          branch: bot/draft-${{ matrix.name }}-${{ matrix.version }}
