@@ -91,8 +91,8 @@ jobs:
           path: ${{ runner.temp }}
       - name: Install Nipoppy
         run: |
-          pip install nipoppy
-          pip install git+https://github.com/childmindresearch/boutiques_next.git
+          pip install nipoppy@git+https://github.com/michellewang/nipoppy.git@bosh_cli_only
+          pip install boutiques@git+https://github.com/childmindresearch/boutiques_next.git
       - name: Generate config files
         run: |
           nipoppy pipeline create \
