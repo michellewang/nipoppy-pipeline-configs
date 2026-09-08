@@ -1,0 +1,7 @@
+// Nipoppy will apply string substitutions when this file is loaded,
+// see https://nipoppy.readthedocs.io/en/0.1.dev695+gff6d5dc3d/reference/substitutions.html
+{
+  "bids_dir": "example_bids_dir",
+  "output_dir": "/path/to/output_dir",
+  "analysis_level": "participant"
+}
